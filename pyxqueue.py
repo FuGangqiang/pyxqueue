@@ -23,7 +23,7 @@ class TaskQueue:
         self.worker_prefix = worker_prefix
         self.consumer_group = consumer_group
         self.result_key = stream_key + '.results'  # Store results in a Hash
-        self.signal = multiprocessing.Event()  # Used to signal shutdown
+        self.shutdown_flag = multiprocessing.Event()
         self._tasks = dict()
         self.ensure_stream_and_consumer_group()
 
@@ -75,7 +75,7 @@ class TaskQueue:
 
         _ = signal.signal(signal.SIGINT, signal.SIG_IGN)
         self._pool = []
-        self.signal.clear()
+        self.shutdown_flag.clear()
         for _ in range(nworkers):
             worker = TaskWorker(self)
             worker_t = multiprocessing.Process(target=worker.run)
@@ -88,11 +88,12 @@ class TaskQueue:
             sys.exit(0)
 
         signal.signal(signal.SIGINT, int_handler)
-        print('Press Ctrl+C')
+        print('{} worker processes started.'.format(nworkers))
+        print('Press Ctrl+C to exit.')
         signal.pause()
 
     def shutdown(self):
-        self.signal.set()
+        self.shutdown_flag.set()
         for worker_t in self._pool:
             worker_t.join()
 
@@ -110,7 +111,7 @@ class TaskWorker:
                                                                   index=TaskWorker._worker_idx)
 
     def run(self):
-        while not self.queue.signal.is_set():
+        while not self.queue.shutdown_flag.is_set():
             pending_resp = self.client.xpending_range(
                 self.stream_key,
                 self.consumer_group,
