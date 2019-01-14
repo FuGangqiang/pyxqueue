@@ -71,6 +71,9 @@ class TaskQueue:
         return json.loads(val) if exists else None
 
     def run(self, nworkers=1):
+        import signal
+
+        _ = signal.signal(signal.SIGINT, signal.SIG_IGN)
         self._pool = []
         self.signal.clear()
         for _ in range(nworkers):
@@ -79,10 +82,8 @@ class TaskQueue:
             worker_t.start()
             self._pool.append(worker_t)
 
-        import sys
-        import signal
-
         def int_handler(_sig, _frame):
+            import sys
             self.shutdown()
             sys.exit(0)
 
