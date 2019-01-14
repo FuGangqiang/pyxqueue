@@ -35,7 +35,10 @@ class TaskQueue:
                 self.client.xgroup_create(self.stream_key, self.consumer_group)
 
     def task(self, fn):
-        self._tasks[fn.__name__] = fn
+        fn_key = self.get_fn_key(fn)
+        if fn_key in self._tasks:
+            raise Exception('this function name already register, use other name instead')
+        self._tasks[fn_key] = fn
 
         @wraps(fn)
         def inner(*args, **kwargs):
@@ -45,8 +48,14 @@ class TaskQueue:
 
         return inner
 
+    def get_fn_key(self, fn):
+        mod = fn.__module__
+        fn = fn.__name__
+        return '{}.{}'.format(mod, fn)
+
     def serialize_message(self, task, args=None, kwargs=None):
-        return json.dumps(dict(task_name=task.__name__, args=args, kwargs=kwargs))
+        task_key = self.get_fn_key(task)
+        return json.dumps(dict(task_name=task_key, args=args, kwargs=kwargs))
 
     def deserialize_message(self, message):
         message = json.loads(message)
