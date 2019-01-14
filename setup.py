@@ -1,7 +1,3 @@
-'''
-a redis stream queue
-'''
-
 from setuptools import setup
 
 with open('README.md') as f:
@@ -11,7 +7,7 @@ with open('README.md') as f:
 setup(
     name='pyxqueue',
     version='0.0.4',
-    description='a redis stream queue',
+    description='a multi-processes task queue using redis streams.',
     long_description=long_description,
     long_description_content_type="text/markdown",
     url='https://github.com/FuGangqiang/pyxqueue',
