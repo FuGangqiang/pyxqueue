@@ -1,5 +1,5 @@
-import json
 import time
+import pickle
 import multiprocessing
 from functools import wraps
 
@@ -55,10 +55,10 @@ class TaskQueue:
 
     def serialize_message(self, task, args=None, kwargs=None):
         task_key = self.get_fn_key(task)
-        return json.dumps(dict(task_name=task_key, args=args, kwargs=kwargs))
+        return pickle.dumps(dict(task_name=task_key, args=args, kwargs=kwargs))
 
     def deserialize_message(self, message):
-        message = json.loads(message)
+        message = pickle.loads(message)
         task_name = message['task_name']
         args = message['args']
         kwargs = message['kwargs']
@@ -68,7 +68,7 @@ class TaskQueue:
 
     def store_result(self, task_id, result):
         if result is not None:
-            self.client.hset(self.result_key, task_id, json.dumps(result))
+            self.client.hset(self.result_key, task_id, pickle.dumps(result))
 
     def get_result(self, task_id):
         pipe = self.client.pipeline()
@@ -76,7 +76,7 @@ class TaskQueue:
         pipe.hget(self.result_key, task_id)
         pipe.hdel(self.result_key, task_id)
         exists, val, _ = pipe.execute()
-        return json.loads(val) if exists else None
+        return pickle.loads(val) if exists else None
 
     def run(self, nworkers=0):
         import signal
@@ -132,7 +132,7 @@ class TaskWorker:
                 xrange_resp = self.client.xrange(self.stream_key, task_id, count=1)
                 _task_id, data = xrange_resp[0]
                 if task_id == _task_id:
-                    print('pyxqueue: restart task {}: {}'.format(task_id, data))
+                    print('pyxqueue: restart task {}: {}'.format(task_id, pickle.loads(data[b'task'])))
                     self.execute(task_id.decode(), data[b'task'])
                 continue
 
@@ -145,7 +145,7 @@ class TaskWorker:
             )
             for _stream_key, message_list in resp:
                 task_id, data = message_list[0]
-                print('pyxqueue: start task {}: {}'.format(task_id, data))
+                print('pyxqueue: start task {}: {}'.format(task_id, pickle.loads(data[b'task'])))
                 self.execute(task_id.decode(), data[b'task'])
 
     def execute(self, task_id, message):
