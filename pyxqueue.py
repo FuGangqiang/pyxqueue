@@ -24,7 +24,6 @@ class TaskQueue:
         self.consumer_group = consumer_group
         self.result_key = stream_key + '.results'  # Store results in a Hash
         self.signal = multiprocessing.Event()  # Used to signal shutdown
-        self.signal.set()  # Indicate the server is not running
         self._tasks = dict()
         self.ensure_stream_and_consumer_group()
 
@@ -72,9 +71,6 @@ class TaskQueue:
         return json.loads(val) if exists else None
 
     def run(self, nworkers=1):
-        if not self.signal.is_set():
-            raise Exception('workers are already running')
-
         self._pool = []
         self.signal.clear()
         for _ in range(nworkers):
@@ -94,11 +90,7 @@ class TaskQueue:
         print('Press Ctrl+C')
         signal.pause()
 
-
     def shutdown(self):
-        if self.signal.is_set():
-            raise Exception('workers are not running')
-
         self.signal.set()
         for worker_t in self._pool:
             worker_t.join()
