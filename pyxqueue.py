@@ -47,6 +47,9 @@ class TaskQueue:
 
         return inner
 
+    def serialize_message(self, task, args=None, kwargs=None):
+        return json.dumps(dict(task_name=task.__name__, args=args, kwargs=kwargs))
+
     def deserialize_message(self, message):
         message = json.loads(message)
         task_name = message['task_name']
@@ -55,9 +58,6 @@ class TaskQueue:
         if message['task_name'] not in self._tasks:
             raise Exception('task "{}" not registered with queue.'.format(task_name))
         return self._tasks[task_name], args, kwargs
-
-    def serialize_message(self, task, args=None, kwargs=None):
-        return json.dumps(dict(task_name=task.__name__, args=args, kwargs=kwargs))
 
     def store_result(self, task_id, result):
         if result is not None:
