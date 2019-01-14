@@ -1,5 +1,6 @@
 import json
 import time
+import logging
 import multiprocessing
 from functools import wraps
 
@@ -128,6 +129,7 @@ class TaskWorker:
                 xrange_resp = self.client.xrange(self.stream_key, task_id, count=1)
                 _task_id, data = xrange_resp[0]
                 if task_id == _task_id:
+                    logging.info('pyxqueue: restart task %s: %s', task_id, data)
                     self.execute(task_id.decode(), data[b'task'])
                 continue
 
@@ -140,6 +142,7 @@ class TaskWorker:
             )
             for _stream_key, message_list in resp:
                 task_id, data = message_list[0]
+                logging.info('pyxqueue: start task %s: %s', task_id, data)
                 self.execute(task_id.decode(), data[b'task'])
 
     def execute(self, task_id, message):
