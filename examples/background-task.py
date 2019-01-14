@@ -20,7 +20,7 @@ if __name__ == '__main__':
     if len(sys.argv) != 2:
         print(usage)
     elif sys.argv[1] == 'worker':
-        queue.run(4)
+        queue.run()
     elif sys.argv[1] == 'test':
         sleep(2)
     else:

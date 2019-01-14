@@ -10,7 +10,7 @@ with open('README.md') as f:
 
 setup(
     name='pyxqueue',
-    version='0.0.3',
+    version='0.0.4',
     description='a redis stream queue',
     long_description=long_description,
     long_description_content_type="text/markdown",

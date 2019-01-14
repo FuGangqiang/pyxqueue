@@ -70,8 +70,9 @@ class TaskQueue:
         exists, val, _ = pipe.execute()
         return json.loads(val) if exists else None
 
-    def run(self, nworkers=1):
+    def run(self, nworkers=0):
         import signal
+        nworkers = nworkers or multiprocessing.cpu_count()
 
         _ = signal.signal(signal.SIGINT, signal.SIG_IGN)
         self._pool = []
