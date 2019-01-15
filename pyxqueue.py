@@ -54,8 +54,7 @@ class TaskQueue:
         @wraps(fn)
         def inner(*args, **kwargs):
             message = self.serialize_message(fn, args, kwargs)
-            task_id = self.client.xadd(self.stream_key, {'task': message})
-            self.update_task(task_id, TaskStatus.PENDING)
+            task_id = self.create_task(message)
             return AsyncResult(self, task_id)
 
         return inner
@@ -77,6 +76,11 @@ class TaskQueue:
         if message['task_name'] not in self._tasks:
             raise Exception('task "{}" not registered with queue.'.format(task_name))
         return self._tasks[task_name], args, kwargs
+
+    def create_task(self, data):
+        task_id = self.client.xadd(self.stream_key, {'task': data})
+        self.update_task(task_id, TaskStatus.PENDING)
+        return task_id
 
     def update_task(self, task_id, state, value=None):
         body = {
@@ -128,6 +132,33 @@ class TaskQueue:
         self.shutdown_flag.set()
         for worker_t in self._pool:
             worker_t.join()
+
+    def task_total(self):
+        return self.client.xlen(self.stream_key)
+
+    def get_tasks(self, start='-', end='+', count=10):
+        tasks = self.client.xrange(self.stream_key, start, end, count)
+        infos = []
+        for task_id, _data in tasks:
+            info = json.loads(self.client.hget(self.result_key, task_id))
+            infos.append(dict(task_id=task_id, info=info))
+        return infos
+
+    def get_task(self, task_id):
+        info = json.loads(self.client.hget(self.result_key, task_id))
+        return dict(task_id=task_id, info=info)
+
+    def retry_task(self, task_id):
+        _task_id, data = self.client.xrange(task_id, '+', count=1)[0]
+        self.create_task(data[b'task'])
+        self.client.xdel(self.stream_key, task_id)
+        self.client.hdel(self.result_key, task_id)
+
+    def clear_tasks(self, start='-', end='+', count=None):
+        tasks = self.client.xrange(self.stream_key, start, end, count)
+        task_ids = [x[0] for x in tasks]
+        self.client.xdel(self.stream_key, *task_ids)
+        self.client.hdel(self.result_key, *task_ids)
 
 
 class TaskWorker:
