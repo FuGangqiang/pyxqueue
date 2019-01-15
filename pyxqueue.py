@@ -16,12 +16,12 @@ class TaskError(Exception):
 
 class TaskQueue:
 
-    def __init__(self, client, stream_key='xtasks', consumer_group='cg', worker_prefix=''):
+    def __init__(self, client, stream_key='stream', consumer_group='cg', worker_prefix=''):
         self.client = client  #  Redis client.
-        self.stream_key = stream_key
+        self.stream_key = 'xqueue.' + stream_key
         self.worker_prefix = worker_prefix
         self.consumer_group = consumer_group
-        self.result_key = stream_key + '.results'  # Store results in a Hash
+        self.result_key = self.stream_key + '.results'  # Store results in a Hash
         self.shutdown_flag = multiprocessing.Event()
         self._tasks = dict()
         self.ensure_stream_and_consumer_group()
