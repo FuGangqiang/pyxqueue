@@ -10,8 +10,8 @@ class TaskError(Exception):
 
     def __init__(self, error, exc_info):
         super().__init__()
-        self.error = str(error)
-        self.exc_info = str(exc_info)
+        self.error = error
+        self.exc_info = exc_info
 
     def __str__(self):
         return 'TaskError: {}\n{}'.format(self.error, self.exc_info)
