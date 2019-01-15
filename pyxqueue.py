@@ -28,9 +28,10 @@ class TaskStatus(enum.Enum):
 class TaskQueue:
 
     def __init__(self, client, stream_key='stream', consumer_group='cg', worker_prefix=''):
-        self.client = client  #  Redis client.
+        self.client = client  #  Redis client
         self.stream_key = 'xqueue.' + stream_key           # Store tasks in a stream
         self.result_key = self.stream_key + '.results'     # Store results in a Hash
+        self.worker_key = self.stream_key + '.workers'     # Store workers in a Hash
         self.worker_prefix = worker_prefix
         self.consumer_group = consumer_group
         self.shutdown_flag = multiprocessing.Event()
@@ -88,6 +89,13 @@ class TaskQueue:
             'value': value
         }
         self.client.hset(self.result_key, task_id, json.dumps(body))
+
+    def update_worker(self, worker_id):
+        now = int(time.time())
+        self.client.hset(self.worker_key, worker_id, now)
+
+    def delete_worker(self, worker_id):
+        self.client.hdel(self.worker_key, worker_id)
 
     def store_result(self, task_id, result):
         if isinstance(result, TaskError):
@@ -160,6 +168,9 @@ class TaskQueue:
         self.client.xdel(self.stream_key, *task_ids)
         self.client.hdel(self.result_key, *task_ids)
 
+    def get_workers(self):
+        return self.client.hgetall(self.worker_key)
+
 
 class TaskWorker:
     _worker_idx = 0
@@ -173,8 +184,15 @@ class TaskWorker:
         self.worker_name = '{worker_prefix}worker-{index}'.format(worker_prefix=queue.worker_prefix,
                                                                   index=TaskWorker._worker_idx)
 
+    def update(self):
+        self.queue.update_worker(self.worker_name)
+
+    def delete(self):
+        self.queue.delete_worker(self.worker_name)
+
     def run(self):
         while not self.queue.shutdown_flag.is_set():
+            self.update()
             pending_resp = self.client.xpending_range(
                 self.stream_key,
                 self.consumer_group,
@@ -203,6 +221,7 @@ class TaskWorker:
                 self.queue.update_task(task_id, TaskStatus.STARTED)
                 print('pyxqueue: start task {}: {}'.format(task_id, json.loads(data[b'task'])))
                 self.execute(task_id.decode(), data[b'task'])
+        self.delete()
 
     def execute(self, task_id, message):
         task, args, kwargs = self.queue.deserialize_message(message)
