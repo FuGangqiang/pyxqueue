@@ -9,9 +9,9 @@ queue = TaskQueue(client, stream_key='background-task')
 
 @queue.task
 def sleep(n):
-    print('going to sleep for %s seconds' % n)
+    print(f'going to sleep for {n} seconds')
     time.sleep(n)
-    print('woke up after %s seconds' % n)
+    print(f'woke up after {n} seconds')
 
 
 if __name__ == '__main__':

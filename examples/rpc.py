@@ -21,14 +21,13 @@ if __name__ == '__main__':
     elif sys.argv[1] == 'worker':
         queue.run()
     elif sys.argv[1] == 'test':
-        fib_100k = fib(100_000)
-        fib_200k = fib(200_000)
-        fib_300k = fib(300_000)
-        fib_400k = fib(400_000)
-
-        print('100kth fib number starts ends with: %s' % str(fib_100k.result())[-6:])
-        print('200kth fib number starts ends with: %s' % str(fib_200k.result())[-6:])
-        print('300kth fib number starts ends with: %s' % str(fib_300k.result())[-6:])
-        print('400kth fib number starts ends with: %s' % str(fib_400k.result())[-6:])
+        fib_100k_result = fib(100_000)
+        fib_200k_result = fib(200_000)
+        fib_300k_result = fib(300_000)
+        fib_400k_result = fib(400_000)
+        print(f'100kth fib number starts ends with: {str(fib_100k_result.get())[-6:]}')
+        print(f'200kth fib number starts ends with: {str(fib_100k_result.get())[-6:]}')
+        print(f'300kth fib number starts ends with: {str(fib_100k_result.get())[-6:]}')
+        print(f'400kth fib number starts ends with: {str(fib_100k_result.get())[-6:]}')
     else:
         print(usage)

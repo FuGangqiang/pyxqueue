@@ -1,17 +1,28 @@
+import enum
+import json
 import time
-import pickle
+import traceback
 import multiprocessing
 from functools import wraps
 
 
 class TaskError(Exception):
 
-    def __init__(self, error):
+    def __init__(self, error, exc_info):
         super().__init__()
-        self.error = error
+        self.error = str(error)
+        self.exc_info = str(exc_info)
 
     def __str__(self):
-        return str(self.error)
+        return 'TaskError: {}\n{}'.format(self.error, self.exc_info)
+
+
+class TaskStatus(enum.Enum):
+    PENDING = 1
+    STARTED = 2
+    RETRY = 3
+    FAILURE = 4
+    SUCCESS = 5
 
 
 class TaskQueue:
@@ -44,6 +55,7 @@ class TaskQueue:
         def inner(*args, **kwargs):
             message = self.serialize_message(fn, args, kwargs)
             task_id = self.client.xadd(self.stream_key, {'task': message})
+            self.update_task(task_id, TaskStatus.PENDING)
             return AsyncResult(self, task_id)
 
         return inner
@@ -55,10 +67,10 @@ class TaskQueue:
 
     def serialize_message(self, task, args=None, kwargs=None):
         task_key = self.get_fn_key(task)
-        return pickle.dumps(dict(task_name=task_key, args=args, kwargs=kwargs))
+        return json.dumps(dict(task_name=task_key, args=args, kwargs=kwargs))
 
     def deserialize_message(self, message):
-        message = pickle.loads(message)
+        message = json.loads(message)
         task_name = message['task_name']
         args = message['args']
         kwargs = message['kwargs']
@@ -66,17 +78,28 @@ class TaskQueue:
             raise Exception('task "{}" not registered with queue.'.format(task_name))
         return self._tasks[task_name], args, kwargs
 
+    def update_task(self, task_id, state, value=None):
+        body = {
+            'state': state.value,
+            'value': value
+        }
+        self.client.hset(self.result_key, task_id, json.dumps(body))
+
     def store_result(self, task_id, result):
-        if result is not None:
-            self.client.hset(self.result_key, task_id, pickle.dumps(result))
+        if isinstance(result, TaskError):
+            failed = True
+            result = str(result)
+        else:
+            failed = False
+        state = TaskStatus.FAILURE if failed else TaskStatus.SUCCESS
+        self.update_task(task_id, state, result)
 
     def get_result(self, task_id):
         pipe = self.client.pipeline()
         pipe.hexists(self.result_key, task_id)
         pipe.hget(self.result_key, task_id)
-        pipe.hdel(self.result_key, task_id)
-        exists, val, _ = pipe.execute()
-        return pickle.loads(val) if exists else None
+        exists, body = pipe.execute()
+        return json.loads(body) if exists else None
 
     def run(self, nworkers=0):
         import signal
@@ -129,10 +152,11 @@ class TaskWorker:
             )
             if pending_resp:
                 task_id = pending_resp[0]['message_id']
+                self.queue.update_task(task_id, TaskStatus.RETRY)
                 xrange_resp = self.client.xrange(self.stream_key, task_id, count=1)
                 _task_id, data = xrange_resp[0]
                 if task_id == _task_id:
-                    print('pyxqueue: restart task {}: {}'.format(task_id, pickle.loads(data[b'task'])))
+                    print('pyxqueue: restart task {}: {}'.format(task_id, json.loads(data[b'task'])))
                     self.execute(task_id.decode(), data[b'task'])
                 continue
 
@@ -145,7 +169,8 @@ class TaskWorker:
             )
             for _stream_key, message_list in resp:
                 task_id, data = message_list[0]
-                print('pyxqueue: start task {}: {}'.format(task_id, pickle.loads(data[b'task'])))
+                self.queue.update_task(task_id, TaskStatus.STARTED)
+                print('pyxqueue: start task {}: {}'.format(task_id, json.loads(data[b'task'])))
                 self.execute(task_id.decode(), data[b'task'])
 
     def execute(self, task_id, message):
@@ -153,10 +178,11 @@ class TaskWorker:
         try:
             ret = task(*(args or ()), **(kwargs or {}))
         except Exception as e:
-            self.queue.store_result(task_id, TaskError(e))
+            exc_info = traceback.format_exc()
+            self.queue.store_result(task_id, TaskError(e, exc_info))
         else:
             self.queue.store_result(task_id, ret)
-            self.client.xack(self.stream_key, self.consumer_group, task_id)
+        self.client.xack(self.stream_key, self.consumer_group, task_id)
 
 
 class AsyncResult:
@@ -164,23 +190,31 @@ class AsyncResult:
     def __init__(self, queue, task_id):
         self.queue = queue
         self.task_id = task_id
+        # {'state': int, 'value': result }
         self._result = None
 
-    def result(self, block=True, timeout=None):
-        if self._result is None:
-            if not block:
-                result = self.queue.get_result(self.task_id)
-            else:
-                start = time.time()
-                while timeout is None or (start + timeout) > time.time():
-                    result = self.queue.get_result(self.task_id)
-                    if result is None:
-                        time.sleep(0.1)
-                    else:
-                        break
-            if result is not None:
-                self._result = result
+    def _check_result(self):
+        if self._result:
+            return
+        self._result = self.queue.get_result(self.task_id)
 
-        if self._result is not None and isinstance(self._result, TaskError):
-            raise Exception('task failed: {}'.format(self._result))
-        return self._result
+    @property
+    def state(self):
+        self._check_result()
+        if self._result is None:
+            return TaskStatus.PENDING
+        return TaskStatus(self._result['state'])
+
+    def get(self, timeout=None):
+        start = time.time()
+        while timeout is None or start + timeout > time.time():
+            result = self.queue.get_result(self.task_id)
+            if result is None:
+                time.sleep(0.2)
+                continue
+            self._result = result
+            if self.state == TaskStatus.SUCCESS:
+                return result['value']
+            if self.state == TaskStatus.FAILURE:
+                raise Exception(self._result['value'])
+        raise TimeoutError()
