@@ -2,7 +2,6 @@
 
 a multi-processes task queue using redis streams.
 
-
 ## install
 
 ```
@@ -10,7 +9,6 @@ pip install pyxqueue
 ```
 
 ## Usage
-
 
 ### background task
 
@@ -44,7 +42,6 @@ if __name__ == '__main__':
         print(usage)
 ```
 
-
 ## rpc
 
 ```
@@ -72,13 +69,7 @@ if __name__ == '__main__':
         queue.run()
     elif sys.argv[1] == 'test':
         fib_100k_result = fib(100_000)
-        fib_200k_result = fib(200_000)
-        fib_300k_result = fib(300_000)
-        fib_400k_result = fib(400_000)
         print(f'100kth fib number starts ends with: {str(fib_100k_result.get())[-6:]}')
-        print(f'200kth fib number starts ends with: {str(fib_100k_result.get())[-6:]}')
-        print(f'300kth fib number starts ends with: {str(fib_100k_result.get())[-6:]}')
-        print(f'400kth fib number starts ends with: {str(fib_100k_result.get())[-6:]}')
     else:
         print(usage)
 ```
