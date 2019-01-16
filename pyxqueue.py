@@ -28,13 +28,14 @@ class TaskStatus(enum.Enum):
 
 class TaskQueue:
 
-    def __init__(self, client, stream_key='stream', consumer_group='cg', worker_prefix=''):
+    def __init__(self, client, *, stream_key='stream', consumer_group='cg', worker_prefix='', timeout=1000):
         self.client = client  #  Redis client
         self.stream_key = 'xqueue.' + stream_key  # Store tasks in a stream
         self.result_key = self.stream_key + '.results'  # Store results in a Hash
         self.worker_key = self.stream_key + '.workers'  # Store workers in a Hash
         self.worker_prefix = worker_prefix
         self.consumer_group = consumer_group
+        self.timeout = timeout
         self.shutdown_flag = multiprocessing.Event()
         self._tasks = dict()
         self.ensure_stream_and_consumer_group()
@@ -218,7 +219,7 @@ class TaskWorker:
                 self.worker_name,
                 {self.stream_key: '>'},
                 count=1,
-                block=1000,
+                block=self.queue.timeout,
             )
             for _stream_key, message_list in resp:
                 task_id, data = message_list[0]
