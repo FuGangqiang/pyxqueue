@@ -1,3 +1,4 @@
+import os
 import enum
 import json
 import time
@@ -83,25 +84,27 @@ class TaskQueue:
         self.update_task(task_id, TaskStatus.PENDING)
         return task_id
 
-    def update_task(self, task_id, state, value=None):
-        body = {'state': state.value, 'value': value}
+    def update_task(self, task_id, state, value=None, worker=None):
+        body = {'state': state.value, 'value': value, 'worker': worker}
         self.client.hset(self.result_key, task_id, json.dumps(body))
 
     def update_worker(self, worker_id):
         now = int(time.time())
-        self.client.hset(self.worker_key, worker_id, now)
+        pid = os.getpid()
+        data = {'update_time': now, 'pid': pid}
+        self.client.hset(self.worker_key, worker_id, json.dumps(data))
 
     def delete_worker(self, worker_id):
         self.client.hdel(self.worker_key, worker_id)
 
-    def store_result(self, task_id, result):
+    def store_result(self, task_id, result, worker=None):
         if isinstance(result, TaskError):
             failed = True
             result = str(result)
         else:
             failed = False
         state = TaskStatus.FAILURE if failed else TaskStatus.SUCCESS
-        self.update_task(task_id, state, result)
+        self.update_task(task_id, state, result, worker=worker)
 
     def get_result(self, task_id):
         pipe = self.client.pipeline()
@@ -166,7 +169,10 @@ class TaskQueue:
         self.client.hdel(self.result_key, *task_ids)
 
     def get_workers(self):
-        return self.client.hgetall(self.worker_key)
+        workers = self.client.hgetall(self.worker_key)
+        for k, v in workers.items():
+            workers[k] = json.loads(v)
+        return workers
 
 
 class TaskWorker:
@@ -198,7 +204,7 @@ class TaskWorker:
             )
             if pending_resp:
                 task_id = pending_resp[0]['message_id']
-                self.queue.update_task(task_id, TaskStatus.RETRY)
+                self.queue.update_task(task_id, TaskStatus.RETRY, worker=self.worker_name)
                 xrange_resp = self.client.xrange(self.stream_key, task_id, count=1)
                 _task_id, data = xrange_resp[0]
                 if task_id == _task_id:
@@ -215,7 +221,7 @@ class TaskWorker:
             )
             for _stream_key, message_list in resp:
                 task_id, data = message_list[0]
-                self.queue.update_task(task_id, TaskStatus.STARTED)
+                self.queue.update_task(task_id, TaskStatus.STARTED, worker=self.worker_name)
                 print('pyxqueue: start task {}: {}'.format(task_id, json.loads(data[b'task'])))
                 self.execute(task_id.decode(), data[b'task'])
         self.delete()
@@ -226,9 +232,9 @@ class TaskWorker:
             ret = task(*(args or ()), **(kwargs or {}))
         except Exception as e:
             exc_info = traceback.format_exc()
-            self.queue.store_result(task_id, TaskError(e, exc_info))
+            self.queue.store_result(task_id, TaskError(e, exc_info), worker=self.worker_name)
         else:
-            self.queue.store_result(task_id, ret)
+            self.queue.store_result(task_id, ret, worker=self.worker_name)
         self.client.xack(self.stream_key, self.consumer_group, task_id)
 
 
