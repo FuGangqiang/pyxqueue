@@ -234,7 +234,7 @@ class TaskWorker:
                     self.queue.update_task(task_id, TaskStatus.RETRY, worker=self.worker_name)
                     self.update(task_id=task_id)
                     self.update_task_progress(task_id, 0)
-                    print('pyxqueue: restart task {}: {}'.format(task_id, json.loads(data[b'task'])))
+                    print('pyxqueue: restart task {}: {}'.format(task_id, json.loads(data[b'task'])['task_name']))
                     self.execute(task_id.decode(), data[b'task'])
                     self.update_task_progress(task_id, 100)
                 continue
@@ -251,7 +251,7 @@ class TaskWorker:
                 self.queue.update_task(task_id, TaskStatus.STARTED, worker=self.worker_name)
                 self.update(task_id=task_id)
                 self.update_task_progress(task_id, 0)
-                print('pyxqueue: start task {}: {}'.format(task_id, json.loads(data[b'task'])))
+                print('pyxqueue: start task {}: {}'.format(task_id, json.loads(data[b'task'])['task_name']))
                 self.execute(task_id.decode(), data[b'task'])
                 self.update_task_progress(task_id, 100)
         self.delete()
