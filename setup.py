@@ -6,7 +6,7 @@ with open('README.md') as f:
 
 setup(
     name='pyxqueue',
-    version='0.0.5',
+    version='0.0.6',
     description='a multi-processes task queue using redis streams.',
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -20,7 +20,6 @@ setup(
     install_requires=['redis>=3.0.0'],
 
     classifiers=[
-        'Development Status :: 3 - Alpha',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.5',
         'Environment :: Web Environment',

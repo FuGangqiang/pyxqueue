@@ -33,6 +33,7 @@ class TaskQueue:
         self.stream_key = 'xqueue.' + stream_key  # Store tasks in a stream
         self.result_key = self.stream_key + '.results'  # Store results in a Hash
         self.worker_key = self.stream_key + '.workers'  # Store workers in a Hash
+        self.progress_key = self.stream_key + '.progresses'  # Store task progress in a Hash
         self.worker_prefix = worker_prefix
         self.consumer_group = consumer_group
         self.timeout = timeout
@@ -62,6 +63,18 @@ class TaskQueue:
 
         return inner
 
+    def update_task_progress(self, progress):
+        pid = os.getpid()
+        workers = self.get_workers()
+        for item in workers.values():
+            if item['pid'] != pid:
+                continue
+            self.client.hset(self.progress_key, item['task_id'], progress)
+            break
+
+    def get_task_progress(self, task_id):
+        return self.client.hget(self.progress_key, task_id)
+
     def get_fn_key(self, fn):
         mod = fn.__module__
         fn = fn.__name__
@@ -83,6 +96,7 @@ class TaskQueue:
     def create_task(self, data):
         task_id = self.client.xadd(self.stream_key, {'task': data})
         self.update_task(task_id, TaskStatus.PENDING)
+        self.client.hset(self.progress_key, task_id, 0)
         return task_id
 
     def update_task(self, task_id, state, value=None, worker=None):
@@ -90,10 +104,12 @@ class TaskQueue:
         body = {'state': state.value, 'value': value, 'worker': worker, 'update_time': now}
         self.client.hset(self.result_key, task_id, json.dumps(body))
 
-    def update_worker(self, worker_id):
+    def update_worker(self, worker_id, task_id=None):
         now = int(time.time())
         pid = os.getpid()
-        data = {'pid': pid, 'update_time': now}
+        if isinstance(task_id, bytes):
+            task_id = task_id.decode()
+        data = {'pid': pid, 'task_id': task_id, 'update_time': now}
         self.client.hset(self.worker_key, worker_id, json.dumps(data))
 
     def delete_worker(self, worker_id):
@@ -105,6 +121,7 @@ class TaskQueue:
             result = str(result)
         else:
             failed = False
+            self.client.hset(self.progress_key, task_id, 100)
         state = TaskStatus.FAILURE if failed else TaskStatus.SUCCESS
         self.update_task(task_id, state, result, worker=worker)
 
@@ -169,6 +186,7 @@ class TaskQueue:
         task_ids = [x[0] for x in tasks]
         self.client.xdel(self.stream_key, *task_ids)
         self.client.hdel(self.result_key, *task_ids)
+        self.client.hdel(self.progress_key, *task_ids)
 
     def get_workers(self):
         workers = self.client.hgetall(self.worker_key)
@@ -189,11 +207,14 @@ class TaskWorker:
         self.worker_name = '{worker_prefix}worker-{index}'.format(worker_prefix=queue.worker_prefix,
                                                                   index=TaskWorker._worker_idx)
 
-    def update(self):
-        self.queue.update_worker(self.worker_name)
+    def update(self, task_id=None):
+        self.queue.update_worker(self.worker_name, task_id)
 
     def delete(self):
         self.queue.delete_worker(self.worker_name)
+
+    def update_task_progress(self, task_id, progress):
+        self.client.hset(self.queue.progress_key, task_id, progress)
 
     def run(self):
         while not self.queue.shutdown_flag.is_set():
@@ -206,12 +227,15 @@ class TaskWorker:
             )
             if pending_resp:
                 task_id = pending_resp[0]['message_id']
-                self.queue.update_task(task_id, TaskStatus.RETRY, worker=self.worker_name)
                 xrange_resp = self.client.xrange(self.stream_key, task_id, count=1)
                 _task_id, data = xrange_resp[0]
                 if task_id == _task_id:
+                    self.queue.update_task(task_id, TaskStatus.RETRY, worker=self.worker_name)
+                    self.update(task_id=task_id)
+                    self.update_task_progress(task_id, 0)
                     print('pyxqueue: restart task {}: {}'.format(task_id, json.loads(data[b'task'])))
                     self.execute(task_id.decode(), data[b'task'])
+                    self.update_task_progress(task_id, 100)
                 continue
 
             resp = self.client.xreadgroup(
@@ -224,8 +248,11 @@ class TaskWorker:
             for _stream_key, message_list in resp:
                 task_id, data = message_list[0]
                 self.queue.update_task(task_id, TaskStatus.STARTED, worker=self.worker_name)
+                self.update(task_id=task_id)
+                self.update_task_progress(task_id, 0)
                 print('pyxqueue: start task {}: {}'.format(task_id, json.loads(data[b'task'])))
                 self.execute(task_id.decode(), data[b'task'])
+                self.update_task_progress(task_id, 100)
         self.delete()
 
     def execute(self, task_id, message):
