@@ -85,13 +85,14 @@ class TaskQueue:
         return task_id
 
     def update_task(self, task_id, state, value=None, worker=None):
-        body = {'state': state.value, 'value': value, 'worker': worker}
+        now = int(time.time())
+        body = {'state': state.value, 'value': value, 'worker': worker, 'update_time': now}
         self.client.hset(self.result_key, task_id, json.dumps(body))
 
     def update_worker(self, worker_id):
         now = int(time.time())
         pid = os.getpid()
-        data = {'update_time': now, 'pid': pid}
+        data = {'pid': pid, 'update_time': now}
         self.client.hset(self.worker_key, worker_id, json.dumps(data))
 
     def delete_worker(self, worker_id):
