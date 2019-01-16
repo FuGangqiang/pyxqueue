@@ -212,6 +212,7 @@ class TaskWorker:
 
     def delete(self):
         self.queue.delete_worker(self.worker_name)
+        print('{} processe end'.format(self.worker_name))
 
     def update_task_progress(self, task_id, progress):
         self.client.hset(self.queue.progress_key, task_id, progress)
