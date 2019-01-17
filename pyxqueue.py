@@ -29,7 +29,7 @@ class TaskStatus(enum.Enum):
 class TaskQueue:
 
     def __init__(self, client, *, stream_key='stream', consumer_group='cg', worker_prefix='', timeout=1000,
-                 queue_size=None):
+                 queue_size=None, gc_interval=60):
         self.client = client  #  Redis client
         self.stream_key = 'xqueue.' + stream_key  # Store tasks in a stream
         self.result_key = self.stream_key + '.results'  # Store results in a Hash
@@ -39,6 +39,7 @@ class TaskQueue:
         self.consumer_group = consumer_group
         self.timeout = timeout
         self.queue_size = queue_size
+        self.gc_interval = gc_interval
         self.shutdown_flag = multiprocessing.Event()
         self._tasks = dict()
         self.ensure_stream_and_consumer_group()
@@ -156,7 +157,7 @@ class TaskQueue:
         print('{} worker processes started.'.format(nworkers))
         print('Press Ctrl+C to exit.')
         while True:
-            time.sleep(60)
+            time.sleep(self.gc_interval)
             self.gc()
 
     def shutdown(self):
