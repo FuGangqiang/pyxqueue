@@ -28,7 +28,8 @@ class TaskStatus(enum.Enum):
 
 class TaskQueue:
 
-    def __init__(self, client, *, stream_key='stream', consumer_group='cg', worker_prefix='', timeout=1000):
+    def __init__(self, client, *, stream_key='stream', consumer_group='cg', worker_prefix='', timeout=1000,
+                 queue_size=None):
         self.client = client  #  Redis client
         self.stream_key = 'xqueue.' + stream_key  # Store tasks in a stream
         self.result_key = self.stream_key + '.results'  # Store results in a Hash
@@ -37,6 +38,7 @@ class TaskQueue:
         self.worker_prefix = worker_prefix
         self.consumer_group = consumer_group
         self.timeout = timeout
+        self.queue_size = queue_size
         self.shutdown_flag = multiprocessing.Event()
         self._tasks = dict()
         self.ensure_stream_and_consumer_group()
@@ -153,7 +155,9 @@ class TaskQueue:
         signal.signal(signal.SIGINT, int_handler)
         print('{} worker processes started.'.format(nworkers))
         print('Press Ctrl+C to exit.')
-        signal.pause()
+        while True:
+            time.sleep(60)
+            self.gc()
 
     def shutdown(self):
         self.shutdown_flag.set()
@@ -193,6 +197,21 @@ class TaskQueue:
         for k, v in workers.items():
             workers[k] = json.loads(v)
         return workers
+
+    def gc(self):
+        if not self.queue_size:
+            return
+        need_drop_count = self.task_total() - self.queue_size
+        if need_drop_count <= 0:
+            return
+        need_drop_tasks = self.get_tasks(count=need_drop_count)
+        count = 0
+        for task in need_drop_tasks:
+            if task['info']['state'] == TaskStatus.SUCCESS.value:
+                self.clear_tasks(task['task_id'], task['task_id'])
+                count += 1
+        if count:
+            print(f'pyxqueue: gc {count} tasks')
 
 
 class TaskWorker:
