@@ -182,15 +182,19 @@ class TaskQueue:
     def retry_task(self, task_id):
         _task_id, data = self.client.xrange(task_id, '+', count=1)[0]
         self.create_task(data[b'task'])
-        self.client.xdel(self.stream_key, task_id)
-        self.client.hdel(self.result_key, task_id)
+        pipe = self.client.pipeline()
+        pipe.xdel(self.stream_key, task_id)
+        pipe.hdel(self.result_key, task_id)
+        pipe.execute()
 
     def clear_tasks(self, start='-', end='+', count=None):
         tasks = self.client.xrange(self.stream_key, start, end, count)
         task_ids = [x[0] for x in tasks]
-        self.client.xdel(self.stream_key, *task_ids)
-        self.client.hdel(self.result_key, *task_ids)
-        self.client.hdel(self.progress_key, *task_ids)
+        pipe = self.client.pipeline()
+        pipe.xdel(self.stream_key, *task_ids)
+        pipe.hdel(self.result_key, *task_ids)
+        pipe.hdel(self.progress_key, *task_ids)
+        pipe.execute()
 
     def get_workers(self):
         workers = self.client.hgetall(self.worker_key)
