@@ -2,6 +2,7 @@ import os
 import enum
 import json
 import time
+import uuid
 import traceback
 import multiprocessing
 from functools import wraps
@@ -67,9 +68,12 @@ class TaskQueue:
         return inner
 
     def update_task_progress(self, progress):
+        node_id = uuid.getnode()
         pid = os.getpid()
         workers = self.get_workers()
         for item in workers.values():
+            if item['node_id'] != node_id:
+                continue
             if item['pid'] != pid:
                 continue
             self.client.hset(self.progress_key, item['task_id'], progress)
@@ -106,17 +110,6 @@ class TaskQueue:
         now = int(time.time())
         body = {'state': state.value, 'value': value, 'worker': worker, 'update_time': now}
         self.client.hset(self.result_key, task_id, json.dumps(body))
-
-    def update_worker(self, worker_id, task_id=None):
-        now = int(time.time())
-        pid = os.getpid()
-        if isinstance(task_id, bytes):
-            task_id = task_id.decode()
-        data = {'pid': pid, 'task_id': task_id, 'update_time': now}
-        self.client.hset(self.worker_key, worker_id, json.dumps(data))
-
-    def delete_worker(self, worker_id):
-        self.client.hdel(self.worker_key, worker_id)
 
     def store_result(self, task_id, result, worker=None):
         if isinstance(result, TaskError):
@@ -224,18 +217,25 @@ class TaskWorker:
 
     def __init__(self, queue):
         TaskWorker._worker_idx += 1
+        self.uuid = str(uuid.uuid1())
         self.queue = queue
         self.client = queue.client
         self.stream_key = queue.stream_key
         self.consumer_group = queue.consumer_group
-        self.worker_name = '{worker_prefix}worker-{index}'.format(worker_prefix=queue.worker_prefix,
-                                                                  index=TaskWorker._worker_idx)
+        self.worker_name = '{worker_prefix}worker-{index}-{uuid}'.format(worker_prefix=queue.worker_prefix,
+                                                                         index=TaskWorker._worker_idx, uuid=self.uuid)
 
     def update(self, task_id=None):
-        self.queue.update_worker(self.worker_name, task_id)
+        now = int(time.time())
+        node_id = uuid.getnode()
+        pid = os.getpid()
+        if isinstance(task_id, bytes):
+            task_id = task_id.decode()
+        data = {'node_id': node_id, 'pid': pid, 'task_id': task_id, 'update_time': now}
+        self.client.hset(self.queue.worker_key, self.worker_name, json.dumps(data))
 
     def delete(self):
-        self.queue.delete_worker(self.worker_name)
+        self.client.hdel(self.queue.worker_key, self.worker_name)
         print('{} processe end'.format(self.worker_name))
 
     def update_task_progress(self, task_id, progress):
