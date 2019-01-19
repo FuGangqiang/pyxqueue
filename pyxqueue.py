@@ -137,9 +137,9 @@ class TaskQueue:
         self.shutdown_flag.clear()
         for _ in range(nworkers):
             worker = TaskWorker(self)
-            worker_t = multiprocessing.Process(target=worker.run)
-            worker_t.start()
-            self._pool.append(worker_t)
+            worker_process = multiprocessing.Process(target=worker.run)
+            worker_process.start()
+            self._pool.append(worker_process)
 
         def int_handler(_sig, _frame):
             import sys
@@ -156,7 +156,7 @@ class TaskQueue:
     def shutdown(self):
         self.shutdown_flag.set()
         for worker_t in self._pool:
-            worker_t.join()
+            worker_t.kill()
 
     def task_total(self):
         return self.client.xlen(self.stream_key)
