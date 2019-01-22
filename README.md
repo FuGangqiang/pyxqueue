@@ -2,6 +2,8 @@
 
 a multi-processes task queue using redis streams.
 
+heavily inspired from: [http://charlesleifer.com/blog/multi-process-task-queue-using-redis-streams/](http://charlesleifer.com/blog/multi-process-task-queue-using-redis-streams/)
+
 ## install
 
 ```
