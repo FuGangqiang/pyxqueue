@@ -76,6 +76,27 @@ if __name__ == '__main__':
         print(usage)
 ```
 
+
+### task info
+
+```
+>>> task_id = b'1551943344215-0'
+>>> queue.get_task(task_id)
+{
+    'task_id': b'1551943344215-0', 
+    'info': {
+        'state': 2, 
+        'value': None, 
+        'worker': 'worker-1-66202570-40a9-11e9-bc87-00163e0eb975', 
+        'update_time': 1551943344
+    },
+    'data': {
+        b'task': b'{"task_name": "queues.spider.download", "args": [75], "kwargs": {}}'
+    }
+}
+```
+
+
 ### progress
 
 ```
@@ -106,10 +127,4 @@ if __name__ == '__main__':
         long_work()
     else:
         print(usage)
-```
-
-to get task progress:
-
-```
-queue.get_task_progress(task_id)
 ```
