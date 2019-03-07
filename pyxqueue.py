@@ -174,7 +174,7 @@ class TaskQueue:
         return dict(task_id=task_id, info=info)
 
     def retry_task(self, task_id):
-        _task_id, data = self.client.xrange(task_id, '+', count=1)[0]
+        _task_id, data = self.client.xrange(self.stream_key, task_id, '+', count=1)[0]
         self.create_task(data[b'task'])
         pipe = self.client.pipeline()
         pipe.xdel(self.stream_key, task_id)
