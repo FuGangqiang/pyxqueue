@@ -166,13 +166,15 @@ class TaskQueue:
         infos = []
         for task_id, data in tasks:
             info = json.loads(self.client.hget(self.result_key, task_id))
-            infos.append(dict(task_id=task_id, info=info, data=data))
+            progress = self.get_task_progress(task_id)
+            infos.append(dict(task_id=task_id, info=info, data=data, progress=progress))
         return infos
 
     def get_task(self, task_id):
         _task_id, data = self.client.xrange(self.stream_key, task_id, '+', 1)[0]
+        progress = self.get_task_progress(task_id)
         info = json.loads(self.client.hget(self.result_key, task_id))
-        return dict(task_id=task_id, info=info, data=data)
+        return dict(task_id=task_id, info=info, data=data, progress=progress)
 
     def retry_task(self, task_id):
         _task_id, data = self.client.xrange(self.stream_key, task_id, '+', count=1)[0]
