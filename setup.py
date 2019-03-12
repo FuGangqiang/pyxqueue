@@ -21,7 +21,7 @@ setup(
 
     classifiers=[
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.7',
         'Environment :: Web Environment',
         'License :: OSI Approved :: MIT License',
     ],

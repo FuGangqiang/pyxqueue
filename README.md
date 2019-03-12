@@ -6,6 +6,8 @@ heavily inspired from: [http://charlesleifer.com/blog/multi-process-task-queue-u
 
 ## install
 
+`pyxqueue` uses some feature of python 3.7, so you should use python 3.7 or newer.
+
 ```
 pip install pyxqueue
 ```

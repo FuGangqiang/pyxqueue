@@ -16,7 +16,7 @@ class TaskError(Exception):
         self.exc_info = exc_info
 
     def __str__(self):
-        return 'TaskError: {}\n{}'.format(self.error, self.exc_info)
+        return f'TaskError: {self.error}\n{self.exc_info}'
 
 
 class TaskStatus(enum.Enum):
@@ -32,10 +32,10 @@ class TaskQueue:
     def __init__(self, client, *, stream_key='stream', consumer_group='cg', worker_prefix='', timeout=1000,
                  queue_size=None, gc_interval=60):
         self.client = client  #  Redis client
-        self.stream_key = 'xqueue.' + stream_key  # Store tasks in a stream
-        self.result_key = self.stream_key + '.results'  # Store results in a Hash
-        self.worker_key = self.stream_key + '.workers'  # Store workers in a Hash
-        self.progress_key = self.stream_key + '.progresses'  # Store task progress in a Hash
+        self.stream_key = f'xqueue.{stream_key}'  # Store tasks in a stream
+        self.result_key = f'{self.stream_key}.results'  # Store results in a Hash
+        self.worker_key = f'{self.stream_key}.workers'  # Store workers in a Hash
+        self.progress_key = f'{self.stream_key}.progresses'  # Store task progress in a Hash
         self.worker_prefix = worker_prefix
         self.consumer_group = consumer_group
         self.timeout = timeout
@@ -85,7 +85,7 @@ class TaskQueue:
     def get_fn_key(self, fn):
         mod = fn.__module__
         fn = fn.__name__
-        return '{}.{}'.format(mod, fn)
+        return f'{mod}.{fn}'
 
     def serialize_message(self, task, args=None, kwargs=None):
         task_key = self.get_fn_key(task)
@@ -97,7 +97,7 @@ class TaskQueue:
         args = message['args']
         kwargs = message['kwargs']
         if message['task_name'] not in self._tasks:
-            raise Exception('task "{}" not registered with queue.'.format(task_name))
+            raise Exception(f'task "{task_name}" not registered with queue.')
         return self._tasks[task_name], args, kwargs
 
     def create_task(self, data):
@@ -147,7 +147,7 @@ class TaskQueue:
             sys.exit(0)
 
         signal.signal(signal.SIGINT, int_handler)
-        print('{} worker processes started.'.format(nworkers))
+        print(f'{nworkers} worker processes started.')
         print('Press Ctrl+C to exit.')
         while True:
             time.sleep(self.gc_interval)
@@ -225,8 +225,7 @@ class TaskWorker:
         self.client = queue.client
         self.stream_key = queue.stream_key
         self.consumer_group = queue.consumer_group
-        self.worker_name = '{worker_prefix}worker-{index}-{uuid}'.format(worker_prefix=queue.worker_prefix,
-                                                                         index=TaskWorker._worker_idx, uuid=self.uuid)
+        self.worker_name = f'{queue.worker_prefix}worker-{TaskWorker._worker_idx}-{self.uuid}'
 
     def update(self, task_id=None):
         now = int(time.time())
@@ -239,7 +238,7 @@ class TaskWorker:
 
     def delete(self):
         self.client.hdel(self.queue.worker_key, self.worker_name)
-        print('{} processe end'.format(self.worker_name))
+        print(f'{self.worker_name} processe end')
 
     def update_task_progress(self, task_id, progress):
         self.client.hset(self.queue.progress_key, task_id, progress)
@@ -261,7 +260,7 @@ class TaskWorker:
                     self.queue.update_task(task_id, TaskStatus.RETRY, worker=self.worker_name)
                     self.update(task_id=task_id)
                     self.update_task_progress(task_id, 0)
-                    print('pyxqueue: restart task {}: {}'.format(task_id, json.loads(data[b'task'])['task_name']))
+                    print(f'pyxqueue: restart task {task_id}:', json.loads(data[b'task'])['task_name'])
                     self.execute(task_id.decode(), data[b'task'])
                     self.update_task_progress(task_id, 100)
                 continue
@@ -278,7 +277,7 @@ class TaskWorker:
                 self.queue.update_task(task_id, TaskStatus.STARTED, worker=self.worker_name)
                 self.update(task_id=task_id)
                 self.update_task_progress(task_id, 0)
-                print('pyxqueue: start task {}: {}'.format(task_id, json.loads(data[b'task'])['task_name']))
+                print(f'pyxqueue: start task {task_id}:', json.loads(data[b'task'])['task_name'])
                 self.execute(task_id.decode(), data[b'task'])
                 self.update_task_progress(task_id, 100)
         self.delete()
