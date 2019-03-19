@@ -259,10 +259,8 @@ class TaskWorker:
                 if task_id == _task_id:
                     self.queue.update_task(task_id, TaskStatus.RETRY, worker=self.worker_name)
                     self.update(task_id=task_id)
-                    self.update_task_progress(task_id, 0)
                     print(f'pyxqueue: restart task {task_id}:', json.loads(data[b'task'])['task_name'])
                     self.execute(task_id.decode(), data[b'task'])
-                    self.update_task_progress(task_id, 100)
                 continue
 
             resp = self.client.xreadgroup(
@@ -276,13 +274,12 @@ class TaskWorker:
                 task_id, data = message_list[0]
                 self.queue.update_task(task_id, TaskStatus.STARTED, worker=self.worker_name)
                 self.update(task_id=task_id)
-                self.update_task_progress(task_id, 0)
                 print(f'pyxqueue: start task {task_id}:', json.loads(data[b'task'])['task_name'])
                 self.execute(task_id.decode(), data[b'task'])
-                self.update_task_progress(task_id, 100)
         self.delete()
 
     def execute(self, task_id, message):
+        self.update_task_progress(task_id, 0)
         task, args, kwargs = self.queue.deserialize_message(message)
         try:
             ret = task(*(args or ()), **(kwargs or {}))
@@ -291,6 +288,7 @@ class TaskWorker:
             self.queue.store_result(task_id, TaskError(e, exc_info), worker=self.worker_name)
         else:
             self.queue.store_result(task_id, ret, worker=self.worker_name)
+            self.update_task_progress(task_id, 100)
         self.client.xack(self.stream_key, self.consumer_group, task_id)
 
 
