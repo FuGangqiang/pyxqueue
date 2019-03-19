@@ -85,11 +85,11 @@ if __name__ == '__main__':
 >>> task_id = b'1551943344215-0'
 >>> queue.get_task(task_id)
 {
-    'task_id': b'1551943344215-0', 
+    'task_id': b'1551943344215-0',
     'info': {
-        'state': 2, 
-        'value': None, 
-        'worker': 'worker-1-66202570-40a9-11e9-bc87-00163e0eb975', 
+        'state': 2,
+        'value': None,
+        'worker': 'worker-1-66202570-40a9-11e9-bc87-00163e0eb975',
         'update_time': 1551943344
     },
     'data': {
