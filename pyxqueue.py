@@ -161,8 +161,8 @@ class TaskQueue:
     def task_total(self):
         return self.client.xlen(self.stream_key)
 
-    def get_tasks(self, start='-', end='+', count=10):
-        tasks = self.client.xrange(self.stream_key, start, end, count)
+    def get_tasks(self, end='+', start='-', count=10):
+        tasks = self.client.xrevrange(self.stream_key, end, start, count)
         infos = []
         for task_id, data in tasks:
             info = json.loads(self.client.hget(self.result_key, task_id))
