@@ -200,6 +200,13 @@ class TaskQueue:
         return workers
 
     def gc(self):
+        workers = self.get_workers()
+        for name, value in workers.items():
+            if value['update_time'] > time.time() - 3600 * 24 * 7:
+                continue
+            self.client.hdel(self.worker_key, name)
+            print(f'pyxqueue: gc worker {name}')
+
         if not self.queue_size:
             return
         need_drop_count = self.task_total() - self.queue_size
