@@ -171,7 +171,7 @@ class TaskQueue:
         return infos
 
     def get_task(self, task_id):
-        _task_id, data = self.client.xrange(self.stream_key, task_id, '+', 1)[0]
+        _task_id, data = self.client.xrange(self.stream_key, task_id, task_id, 1)[0]
         progress = self.get_task_progress(task_id)
         info = json.loads(self.client.hget(self.result_key, task_id))
         return dict(task_id=task_id, info=info, data=data, progress=progress)
