@@ -258,6 +258,8 @@ class TaskWorker:
                 self.consumer_group,
                 consumername=self.worker_name,
                 count=1,
+                min=1,
+                max=5
             )
             if pending_resp:
                 task_id = pending_resp[0]['message_id']
