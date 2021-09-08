@@ -1,20 +1,21 @@
 # pyxqueue
 
-点击[中文版 README](https://github.com/FuGangqiang/pyxqueue/blob/master/README-zh.md)进入中文文档。
+一个异步多进程任务队列，利用 redis streams 功能实现消息存储。
 
-a multi-processes task queue using redis streams.
 
-## install
+## 安装
 
-`pyxqueue` uses some feature of python 3.7, so you should use python 3.7 or newer.
+`pyxqueue` 使用了 python 3.7 的一些特性，你需要使用 python 3.7 解释器或者更高版本。
 
 ```
 pip install pyxqueue
 ```
 
-## Usage
 
-### background task
+## 使用
+
+
+### 后台异步任务
 
 ```
 import time
@@ -46,7 +47,8 @@ if __name__ == '__main__':
         print(usage)
 ```
 
-### rpc
+
+### 远程过程调用(RPC)
 
 ```
 import redis
@@ -79,7 +81,7 @@ if __name__ == '__main__':
 ```
 
 
-### task info
+### task 属性
 
 ```
 >>> task_id = b'1551943344215-0'
@@ -99,7 +101,7 @@ if __name__ == '__main__':
 ```
 
 
-### progress
+### 更新任务进度
 
 ```
 import time
@@ -132,6 +134,6 @@ if __name__ == '__main__':
 ```
 
 
-## notes
+## 备注
 
-this package is heavily inspired from: [http://charlesleifer.com/blog/multi-process-task-queue-using-redis-streams/](http://charlesleifer.com/blog/multi-process-task-queue-using-redis-streams/)
+原理参考于[http://charlesleifer.com/blog/multi-process-task-queue-using-redis-streams/](http://charlesleifer.com/blog/multi-process-task-queue-using-redis-streams/)。
