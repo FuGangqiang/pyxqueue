@@ -257,6 +257,8 @@ class TaskWorker:
                 self.stream_key,
                 self.consumer_group,
                 consumername=self.worker_name,
+                min='-',
+                max='+',
                 count=1,
             )
             if pending_resp:
